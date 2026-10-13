@@ -23,7 +23,7 @@ public class ServidorUDP : MonoBehaviour
 
     [Header("Bola")]
     public Transform bola;
-    public float intervaloEnvioBola = 0.03f;
+    public float intervaloEnvioBola = 0.02f;
 
     [Header("Placar")]
     public int pontosTime1 = 0;
@@ -59,6 +59,8 @@ public class ServidorUDP : MonoBehaviour
     private bool partidaIniciada = false;
     private volatile bool salaCheia = false;
 
+    private Rigidbody2D rbBola;
+
     public bool JogoFinalizado
     {
         get
@@ -70,10 +72,17 @@ public class ServidorUDP : MonoBehaviour
     void Start()
     {
         Application.runInBackground = true;
-        
+
+        if (bola != null)
+        {
+            rbBola =
+                bola.GetComponent<Rigidbody2D>();
+        }
+
         try
         {
-            servidor = new UdpClient(porta);
+            servidor =
+                new UdpClient(porta);
 
             rodando = true;
 
@@ -84,7 +93,8 @@ public class ServidorUDP : MonoBehaviour
             threadReceber.Start();
 
             Debug.Log(
-                "Servidor iniciado na porta " + porta
+                "Servidor iniciado na porta " +
+                porta
             );
         }
         catch (Exception erro)
@@ -100,7 +110,6 @@ public class ServidorUDP : MonoBehaviour
     {
         AtualizarRaquetes();
 
-        // Inicia a bola pela thread principal da Unity
         if (iniciarPartidaPendente &&
             !partidaIniciada)
         {
@@ -170,28 +179,45 @@ public class ServidorUDP : MonoBehaviour
     }
 
     private void EnviarPosicaoBola()
-{
-    string mensagem =
-        "BOLA:" +
-        bola.position.x.ToString(
-            "F3",
-            CultureInfo.InvariantCulture
-        ) +
-        ":" +
-        bola.position.y.ToString(
-            "F3",
-            CultureInfo.InvariantCulture
+    {
+        if (bola == null)
+            return;
+
+        Vector2 velocidadeBola =
+            Vector2.zero;
+
+        if (rbBola != null)
+        {
+            velocidadeBola =
+                rbBola.linearVelocity;
+        }
+
+        string mensagem =
+            "BOLA:" +
+            bola.position.x.ToString(
+                "F3",
+                CultureInfo.InvariantCulture
+            ) +
+            ":" +
+            bola.position.y.ToString(
+                "F3",
+                CultureInfo.InvariantCulture
+            ) +
+            ":" +
+            velocidadeBola.x.ToString(
+                "F3",
+                CultureInfo.InvariantCulture
+            ) +
+            ":" +
+            velocidadeBola.y.ToString(
+                "F3",
+                CultureInfo.InvariantCulture
+            );
+
+        EnviarParaTodos(
+            mensagem
         );
-
-    Debug.Log(
-        "SERVIDOR ENVIANDO: " +
-        mensagem
-    );
-
-    EnviarParaTodos(
-        mensagem
-    );
-}
+    }
 
     private void ReceberDados()
     {
@@ -228,7 +254,9 @@ public class ServidorUDP : MonoBehaviour
                     );
                 }
                 else if (
-                    mensagem.StartsWith("RAQUETE:")
+                    mensagem.StartsWith(
+                        "RAQUETE:"
+                    )
                 )
                 {
                     ReceberPosicaoRaquete(
@@ -264,37 +292,63 @@ public class ServidorUDP : MonoBehaviour
         int id =
             clientes[chave];
 
-        string yTexto =
-            mensagem.Substring(8);
+        string[] dados =
+            mensagem.Split(':');
+
+        if (dados.Length != 3)
+            return;
 
         float y;
+        float velocidadeY;
 
-        if (!float.TryParse(
-            yTexto,
-            NumberStyles.Float,
-            CultureInfo.InvariantCulture,
-            out y
-        ))
+        bool yValido =
+            float.TryParse(
+                dados[1],
+                NumberStyles.Float,
+                CultureInfo.InvariantCulture,
+                out y
+            );
+
+        bool velocidadeValida =
+            float.TryParse(
+                dados[2],
+                NumberStyles.Float,
+                CultureInfo.InvariantCulture,
+                out velocidadeY
+            );
+
+        if (!yValido ||
+            !velocidadeValida)
         {
             return;
         }
 
-        if (id == 1 || id == 3)
+        if (id == 1 ||
+            id == 3)
         {
-            y = Mathf.Clamp(
-                y,
-                0.3f,
-                4f
-            );
+            y =
+                Mathf.Clamp(
+                    y,
+                    0.3f,
+                    4f
+                );
         }
         else
         {
-            y = Mathf.Clamp(
-                y,
-                -4f,
-                -0.3f
-            );
+            y =
+                Mathf.Clamp(
+                    y,
+                    -4f,
+                    -0.3f
+                );
         }
+
+        velocidadeY =
+            Mathf.Clamp(
+                velocidadeY,
+                -7f,
+                7f
+            );
 
         lock (travaRaquetes)
         {
@@ -307,6 +361,11 @@ public class ServidorUDP : MonoBehaviour
             id +
             ":" +
             y.ToString(
+                "F3",
+                CultureInfo.InvariantCulture
+            ) +
+            ":" +
+            velocidadeY.ToString(
                 "F3",
                 CultureInfo.InvariantCulture
             );
@@ -425,14 +484,16 @@ public class ServidorUDP : MonoBehaviour
                 clientes[chave];
 
             EnviarMensagem(
-                "ASSIGN:" + idExistente,
+                "ASSIGN:" +
+                idExistente,
                 cliente
             );
 
             return;
         }
 
-        if (clientes.Count >= maximoJogadores)
+        if (clientes.Count >=
+            maximoJogadores)
         {
             EnviarMensagem(
                 "SALA_CHEIA",
@@ -493,8 +554,8 @@ public class ServidorUDP : MonoBehaviour
                 "INICIAR_PARTIDA enviado para todos!"
             );
 
-            // Apenas avisa a thread principal
-            iniciarPartidaPendente = true;
+            iniciarPartidaPendente =
+                true;
         }
     }
 
